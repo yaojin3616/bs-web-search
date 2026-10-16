@@ -1,0 +1,8 @@
+- insert:
+    - id: bs-web-search
+      name: bs-web-search
+
+- id: web
+  config:
+    searchProvider: bs-web-search
+    fetchProvider: http

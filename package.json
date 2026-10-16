@@ -1,0 +1,24 @@
+{
+  "name": "bs-web-search",
+  "version": "0.1.0",
+  "description": "Codex web search using the current BISHENG enterprise connection.",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "repository": { "type": "git", "url": "git+https://github.com/yaojin3616/bs-web-search.git" },
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node scripts/pack.mjs"
+  },
+  "exports": { ".": { "types": "./index.d.ts", "default": "./index.js" }, "./package.json": "./package.json" },
+  "files": ["index.js", "index.d.ts", "provider.js", "cordis.patch.yml", "README.md", "LICENSE"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-web": "0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "devDependencies": { "fflate": "0.8.3" },
+  "license": "MIT"
+}
