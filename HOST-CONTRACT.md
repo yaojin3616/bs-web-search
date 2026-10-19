@@ -1,15 +1,13 @@
 # BISHENG Work Integration Contract
 
-This is the host-side contract consumed by bs-web-search 0.2.2. The inspected
-BISHENG Work source now provides the generic enterpriseAuth implementation. New
-plugin business APIs must not require host code changes. Production deployment
-and enterprise/backend authorization still require end-to-end acceptance.
+The search plugin requires the enterpriseAuth.invokeTool SDK in the BISHENG Work
+source package packages/dsh-desktop-enterprise. Source support is not proof of
+production deployment or backend authorization. Upgrade the host and plugin together.
 
-## Cordis service
+## Public SDK
 
-Expose **enterpriseAuth** in the plugin's Cordis scope. Its implementation may use
-IPC or an internal HTTP broker, but plugin code must use this SDK only. A complete
-TypeScript shape is exported as EnterpriseAuth from this plugin's public types.
+The host registers enterpriseAuth even while logged out. The approved plugin
+instance uses its Cordis-scoped service; it never receives credentials or broker URLs.
 
 ~~~ts
 interface EnterpriseAuth {
@@ -19,115 +17,90 @@ interface EnterpriseAuth {
     enterpriseId?: string
     userId?: string
   }
-  request(path: string, init?: {
-    method?: string
-    headers?: Record<string, string>
-    body?: string | Uint8Array
+  invokeTool(toolName: string, args: Record<string, unknown>, options?: {
     signal?: AbortSignal
-  }): Promise<Response>
+    timeoutMs?: number
+    maxInputBytes?: number
+    maxResponseBytes?: number
+  }): Promise<unknown>
 }
 ~~~
 
-The getState() method is a synchronous, locally cached snapshot, never a Promise
-or a network request. Keep the service registered while logged out. Session
-metadata must not include tokens or a privileged broker capability.
+getState() is a synchronous public snapshot for availability, not authorization.
+The host checks instance permission and the current session on each request.
+The plugin detects invokeTool support; old hosts remain unavailable rather than
+falling back to a duplicate transport implementation.
 
-The sessionVersion is a non-empty, non-secret string, at most 256 characters.
-Change it on login/logout, account or enterprise switch, revoked authorization,
-and any new authenticated session, including logout/relogin to the same account.
-Ordinary access-token refresh within the same session must not change it. Optional
-enterprise/user identifiers are non-empty strings of at most 256 characters.
+The SDK also retains request(path, init) for arbitrary same-origin enterprise APIs,
+including binary and streaming responses. Search does not call that lower-level API.
 
-The request() method returns a standard Fetch Response with status, headers and a
-readable body. HTTP business errors (including 401/403/404/500) return Responses;
-they do not throw raw backend error text. Host transport/authentication failures
-may throw errors with these stable codes, which the plugin recognizes:
+## Responsibility boundaries
 
-| Host code | Plugin mapping |
-| --- | --- |
-| errorCode: not_connected | WEB_ENTERPRISE_LOGIN_REQUIRED |
-| errorCode: session_changed | WEB_ENTERPRISE_ACCOUNT_CHANGED |
-| errorCode: authorization_denied | WEB_ENTERPRISE_FORBIDDEN |
-| errorCode: request_aborted | WEB_ABORTED |
+- Electron main owns credentials, enterprise origin resolution, refresh, logout,
+  per-instance permission, session pinning, transport limits and cancellation.
+- The shared enterprise SDK owns tool names and invocation paths, the arguments
+  and tool/result envelopes, bounded JSON reads, safe diagnostics and timeouts.
+- This plugin owns search input validation, business UUID generation, model and
+  commands construction, result normalization, WebError mapping and provider lifecycle.
 
-Legacy uppercase code values ENTERPRISE_LOGIN_REQUIRED, ENTERPRISE_SESSION_CHANGED
-and ENTERPRISE_PERMISSION_DENIED remain recognized. SDK error messages are never
-forwarded verbatim.
+Neither the host broker nor the shared SDK understands search-specific fields.
+New tools and legal relative API paths do not require a new host business route.
+The raw broker must forward business payloads unchanged. The tool SDK wraps args
+without adding business fields such as id, model or commands.
 
-Other SDK failures become a sanitized WEB_PROVIDER_ERROR. Missing or broken SDK
-state becomes WEB_ENTERPRISE_AUTH_UNAVAILABLE; malformed state is invalid.
+## Search protocol
 
-## Host security responsibilities
+The plugin invokes invokeTool(config.toolKey, args, options). The historical
+field toolKey means the exact saved tool name, not generated tool_key; default
+bs_web_search. Model defaults to gpt-5.6-terra.
 
-- Resolve paths against the trusted API origin of the current enterprise.
-- Accept new API paths without per-business-route code or whitelist changes.
-- Reject absolute URLs, cross-origin resolution and other origin bypasses.
-- Own token storage/refresh and add authentication only after authorization.
-- Reject plugin overrides of Authorization, Host, Cookie and sensitive headers.
-- Default to no redirect following; never forward credentials to another origin.
-- Bind channel authorization to the real plugin execution instance. Never trust
-  a self-reported plugin id or distribute one shared privileged broker key.
-- Authorize every request; a synchronous connected flag is not authorization.
-- Propagate cancellation through transport and streaming body consumption.
-- On logout, session switch, or permission revocation, cancel pending calls and
-  discard old-session responses, even after response headers have been returned.
-- Enforce generic resource limits and audit without logging credentials.
-- Do not automatically replay arbitrary non-idempotent business requests.
+~~~js
+await auth.invokeTool('bs_web_search', {
+  id: crypto.randomUUID(),
+  model: 'gpt-5.6-terra',
+  commands: { search_query: [{ q: query }] },
+}, { signal, timeoutMs: 60000, maxInputBytes: 65536, maxResponseBytes: 4194304 })
+~~~
 
-The plugin checks session identity before and after each successful response as
-an additional safeguard. That does not replace host-side session pinning: the
-host must not send an old operation under a newly switched account.
+The SDK sends POST /api/v1/dsh/tools/bs_web_search/invoke with only
+{ arguments: args }, validates the response tool, and returns envelope.result.
+The generic result can be any JSON value; this search plugin requires an object
+and normalizes output/results. The business UUID is not an authentication or
+response correlation ID. Explicit retries generate a fresh UUID; no automatic
+retry occurs. The backend OpenAPI schema must support nested id/model/commands.
 
-The host must decide how authentication-channel permission is approved in the
-enterprise market. The current ZIP manifest's network permission is not itself
-authentication authorization. If backend fine-grained plugin authorization is
-required, attach a trusted plugin identity or use plugin-scoped credentials on the
-host side; do not trust an arbitrary header supplied by the plugin.
+## Errors and resource limits
 
-## Business protocol owned by the plugin
+The shared SDK applies the supplied 60-second deadline, 65536-byte serialized
+UTF-8 input limit and 4 MiB JSON response limit. HTTP diagnostic reads are limited
+to 16 KiB and one second; unreadable diagnostics retain the received HTTP failure.
+Caller cancellation takes precedence. Caller/plugin disposal cancellation flows
+through the SDK into the request and response body.
 
-The search plugin invokes POST /api/v1/dsh/tools/{toolName}/invoke. The historical
-configuration field toolKey is retained for compatibility but means the exact
-saved tool name, not the generated tool_key. Default name: bs_web_search; default
-model: gpt-5.6-terra. Tool names are limited to 125 identifier characters.
+EnterpriseToolError exposes errorCode and optional status/backendCode/requestId.
+The SDK whitelists backend codes and UUID-shaped request IDs, discards raw error
+messages, response bodies and causes, and never replays a failed business request.
+The plugin maps invalid_request/invalid_response to WEB_INVALID_REQUEST/
+WEB_INVALID_RESPONSE, not_connected to WEB_ENTERPRISE_LOGIN_REQUIRED,
+authorization_denied to WEB_ENTERPRISE_FORBIDDEN, session_changed to
+WEB_ENTERPRISE_ACCOUNT_CHANGED, request_aborted to WEB_ABORTED, request_timeout
+to WEB_TIMEOUT, tool_not_found to WEB_ENTERPRISE_TOOL_NOT_FOUND, and other
+failures to WEB_PROVIDER_ERROR.
 
-The plugin sends { arguments: { id, model, commands: { search_query: [{ q }] } } }.
-It generates id with crypto.randomUUID() for each business request and maps the
-native query to q. This UUID is not used for response correlation or authorization.
-The strict invocation envelope contains only arguments; extra top-level fields,
-including id, remain forbidden. Success is { tool: toolName, result: ... }; the
-plugin checks tool and reads result without requiring an echoed UUID.
+## Security and acceptance
 
-The complete serialized request, including UUID, nested commands and JSON escaping,
-is bounded to the backend default 65536 UTF-8 bytes. The saved OpenAPI schema must
-declare id/model/commands, and the invocation API must support generic nested
-objects/arrays. Flat-only backends and the former query/model search adapter are
-not compatible with this release. The backend validates the declared protocol and
-sends it unchanged; no search-specific adapter belongs in the host or generic
-OpenAPI executor.
+Approved instances share the existing enterpriseAuth authorization; invokeTool
+is not a privileged bypass. The main process must reject cross-origin URLs and
+credential/header overrides, and revoke/cancel work on account switch or unload.
+The SDK checks session identity before dispatch and after reading results; these
+checks complement, not replace, main-process session isolation.
 
-Error responses use { error: { code, message, type }, request_id }. The plugin
-keeps only status, recognized business codes and UUID-shaped request IDs, not
-raw messages/types/details. The SDK should preserve the response body; the
-plugin bounds diagnostic parsing separately from success parsing.
+Shared-process Node plugins are not a strong sandbox against malicious code.
+Backend user authorization is not necessarily fine-grained plugin authorization.
+The ZIP network permission is not by itself permission to use enterpriseAuth.
 
-The host must not implement special handling for this path, toolKey, request
-envelope, or search results. It forwards the request and response unchanged,
-except for its generic transport/security rules. No enterpriseSearch service or
-local search-specific endpoint is required.
-
-## Host acceptance checklist
-
-1. Register SDK even while logged out; installing/activating the plugin succeeds.
-2. Login makes the provider usable without plugin reinstall or polling.
-3. A mock backend receives the requested business path/body and host-added token.
-4. A newly added business API works without host code changes or new route rules.
-5. Requests cannot send credentials to another origin or override auth headers.
-6. Logout/switch/revocation cancel requests and invalidate stale responses.
-7. AbortSignal cancels both pending requests and body streams.
-8. Standard JSON, binary, streaming, and HTTP error responses are preserved.
-9. Unauthorized/disabled plugin instances cannot use the channel.
-
-The installed host market loader can verify ZIP loading and provider selection
-without this SDK, but authenticated tool success requires the host implementation
-and the actual backend. Contract mocks are not production acceptance.
+Plugin regressions cover the SDK adapter, search arguments, lifecycle, provider
+selection and packaging. Generic tool transport, JSON/envelope validation, HTTP
+diagnostics, authorization and session safety are tested in BISHENG Work. Joint
+host/plugin integration and real enterprise backend, Electron UI, installed builds
+and target-native platform acceptance remain separate from isolated mocks.

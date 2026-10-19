@@ -9,11 +9,11 @@ export interface SearchConfig {
 /** Host SDK contract required by this plugin; no credentials are exposed. */
 export interface EnterpriseAuth {
   getState(): { connected: boolean; sessionVersion: string; enterpriseId?: string; userId?: string }
-  request(path: string, init?: {
-    method?: string
-    headers?: Record<string, string>
-    body?: string | Uint8Array
+  invokeTool(toolName: string, args: Record<string, unknown>, options?: {
     signal?: AbortSignal
-  }): Promise<Response>
+    timeoutMs?: number
+    maxInputBytes?: number
+    maxResponseBytes?: number
+  }): Promise<unknown>
 }
 export declare function apply(ctx: Context, config: SearchConfig): Promise<void>

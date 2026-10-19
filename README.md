@@ -5,12 +5,14 @@ through a generic host authentication channel, not a search-specific local proxy
 
 ## Integration status
 
-This version uses the **ctx.enterpriseAuth** SDK now present in the inspected
-BISHENG Work source, and sends the search tool's native id/model/commands protocol
-inside the generic tool invocation envelope. See
+This version requires **ctx.enterpriseAuth.invokeTool()** from BISHENG Work.
+The host package packages/dsh-desktop-enterprise owns the shared tool client;
+this plugin supplies only the search-specific id/model/commands arguments. See
 [HOST-CONTRACT.md](HOST-CONTRACT.md) for the integration contract. The plugin can
 activate without the service, but search remains unavailable. Isolated tests do
 not establish production deployment compatibility or a successful live search.
+Hosts exposing only request() must be upgraded; the plugin reports unavailable
+instead of maintaining a second HTTP client or bypassing the SDK.
 
 There is no dependency on enterpriseSearch, /v1/search, /v1/state, broker
 environment variables, or a global broker capability. There is no raw fetch or
@@ -27,7 +29,7 @@ lifetime to later web restarts.
 
 Login availability comes from the synchronous host state snapshot, without
 polling. Logout disables search immediately when the host updates that snapshot.
-A fresh session check is performed before each request and after reading the
+The shared host SDK checks session identity before dispatch and after reading the
 response; results from another user, enterprise, or session are discarded. The
 host is responsible for invalidating credentials and cancelling in-flight calls
 on logout or account switch. The plugin never falls back to the old provider
@@ -113,7 +115,9 @@ published_at maps to publishedAt. Invalid or credential-bearing URLs are removed
 and duplicate citations are collapsed. The encrypted_output field is not treated
 as readable search content. The web runtime enforces maxResults.
 
-Requests time out after 60 seconds and JSON responses are limited to 4 MiB.
+The shared host SDK enforces the supplied 60-second timeout, 65536-byte serialized
+request limit and 4 MiB JSON response limit. It handles tool envelopes, bounded
+JSON reading, safe diagnostics and session checks centrally for every plugin.
 Caller cancellation and plugin disposal abort requests and body reading, including
 late response cleanup if a host adapter ignores cancellation. Error bodies and
 raw SDK exceptions are not surfaced. HTTP failures retain status, whitelisted
@@ -146,11 +150,12 @@ fixed HTTPS origins, not Cordis services, so it remains empty. The host/market
 must explicitly grant and bind authentication-channel access to each approved
 plugin instance; adding a field here cannot implement that security boundary.
 
-Tests cover SDK and tool-envelope contracts, login/logout and session isolation,
-input and response validation, cancellation and timeouts, credential-free plugin
-requests, automatic provider replacement/restoration, and ZIP integrity. A local
-HTTP test uses a mock host to attach credentials outside the plugin. These tests
-do not verify production enterprise authorization or a deployed Gateway.
+Plugin tests cover the invokeTool adapter, fresh search UUIDs and arguments,
+search validation, error mapping, cancellation/disposal, automatic provider
+replacement/restoration and ZIP integrity. Generic HTTP, JSON/envelope, limits,
+timeout, authorization and session-safety regressions belong to the shared client
+in BISHENG Work, not a duplicated plugin client. Joint host/plugin integration
+and live enterprise/backend authorization require separate acceptance.
 
 ## License
 

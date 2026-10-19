@@ -9,9 +9,9 @@ async function fixture(t, selection = 'original') {
   const ctx = new Context()
   ctx.provide('enterpriseAuth', {
     getState() { return { connected: true, sessionVersion: 'session-a', enterpriseId: 'enterprise-a', userId: 'user-a' } },
-    async request(path, init) {
-      calls.push({ path, init })
-      return Response.json({ tool: 'bs_web_search', result: { output: 'enterprise answer' } })
+    async invokeTool(toolName, args, init) {
+      calls.push({ toolName, args, init })
+      return { output: 'enterprise answer' }
     }
   })
   const web = await ctx.plugin(WebRuntime, { ...(selection ? { searchProvider: selection } : {}), fetchProvider: 'local-fetch' })
@@ -40,11 +40,11 @@ test('installation replaces native web.search, preserves fetch, and restores the
     assert.equal((await ctx.get('web').search({ query: 'news' })).content, 'enterprise answer')
     assert.equal(originalCalls.length, 0)
     assert.equal(calls.length, 1)
-    assert.equal(calls[0].path, '/api/v1/dsh/tools/bs_web_search/invoke')
-    const body = JSON.parse(calls[0].init.body)
+    assert.equal(calls[0].toolName, 'bs_web_search')
+    const body = { arguments: calls[0].args }
     assert.deepEqual(body, { arguments: { id: body.arguments.id, model: 'gpt-5.6-terra', commands: { search_query: [{ q: 'news' }] } } })
     assert.match(body.arguments.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u)
-    assert.deepEqual(calls[0].init.headers, { 'content-type': 'application/json' })
+    assert.equal(calls[0].init.maxInputBytes, 65536)
     await ctx.get('web').fetch({ url: 'https://example.com' })
     assert.deepEqual(fetchCalls, ['local-fetch'])
   } finally { await scope.dispose() }

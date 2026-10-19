@@ -51,9 +51,9 @@ test('registers without enterpriseSearch and invokes the host enterprise tool', 
   const calls = []
   ctx.provide('enterpriseAuth', {
     getState() { return { connected: true, sessionVersion: 'session-a', enterpriseId: 'enterprise-a', userId: 'user-a' } },
-    async request(path, init) {
-      calls.push({ path, init })
-      return Response.json({ tool: 'bs_web_search', result: { output: 'answer' } })
+    async invokeTool(toolName, args, init) {
+      calls.push({ toolName, args, init })
+      return { output: 'answer' }
     }
   })
   const web = ctx.plugin(WebRuntime, { searchProvider: 'original-search', fetchProvider: 'original-fetch' })
@@ -68,14 +68,14 @@ test('registers without enterpriseSearch and invokes the host enterprise tool', 
     assert.equal(provider.available(), true)
     assert.equal((await ctx.get('web').search({ query: 'news' })).content, 'answer')
     assert.equal(calls.length, 1)
-    const [{ path, init }] = calls
-    assert.equal(path, '/api/v1/dsh/tools/bs_web_search/invoke')
-    assert.deepEqual(Object.keys(init).sort(), ['body', 'headers', 'method', 'signal'])
-    assert.equal(init.method, 'POST')
-    assert.deepEqual(init.headers, { 'content-type': 'application/json' })
+    const [{ toolName, args, init }] = calls
+    assert.equal(toolName, 'bs_web_search')
+    assert.deepEqual(Object.keys(init).sort(), ['maxInputBytes', 'maxResponseBytes', 'signal', 'timeoutMs'])
+    assert.equal(init.timeoutMs, 60000)
+    assert.equal(init.maxResponseBytes, 4194304)
     assert.ok(init.signal instanceof AbortSignal)
     assert.equal(init.signal.aborted, false)
-    const body = JSON.parse(init.body)
+    const body = { arguments: args }
     assert.deepEqual(body, { arguments: { id: body.arguments.id, model: 'gpt-5.6-terra', commands: { search_query: [{ q: 'news' }] } } })
     assert.match(body.arguments.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u)
     assert.doesNotMatch(JSON.stringify(calls), /token|authorization|connectionKey|\/v1\/(?:state|search)/i)
@@ -93,7 +93,7 @@ for (const state of ['missing SDK', 'logged out']) {
     const ctx = new Context()
     if (state === 'logged out') ctx.provide('enterpriseAuth', {
       getState() { return { connected: false } },
-      async request() { assert.fail('logged-out search must not invoke the host') }
+      async invokeTool() { assert.fail('logged-out search must not invoke the host') }
     })
     const web = await ctx.plugin(WebRuntime, { searchProvider: 'original-search', fetchProvider: 'original-fetch' })
     const scope = ctx.plugin(plugin, {})
