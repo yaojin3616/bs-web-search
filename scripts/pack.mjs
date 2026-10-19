@@ -25,7 +25,7 @@ export async function packPlugin(outputRoot = join(project, '.build')) {
     plugin: {
       name: pkg.name, version: pkg.version, display_name: 'Codex Search',
       description: pkg.description, publisher: 'yaojin3616', license: pkg.license,
-      desktop_min: '1.0.1', permissions: ['network'], services: ['web', 'enterpriseSearch']
+      desktop_min: '1.0.1', permissions: ['network'], services: []
     },
     targets: inventories
   }

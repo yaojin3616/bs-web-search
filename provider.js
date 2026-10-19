@@ -32,7 +32,7 @@ export function createSearchProvider(enterprise, model) {
   return {
     id: 'bs-web-search',
     dispose: () => lifetime.abort(),
-    available: () => enterprise.available(),
+    available: () => !lifetime.signal.aborted && enterprise.available(),
     async search(request, signal) {
       const execution = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal
       try {

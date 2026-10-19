@@ -1,7 +1,7 @@
 {
   "name": "bs-web-search",
-  "version": "0.1.0",
-  "description": "Codex web search using the current BISHENG enterprise connection.",
+  "version": "0.2.2",
+  "description": "Enterprise tool-based web search through the BISHENG authenticated request channel.",
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",
@@ -12,7 +12,7 @@
     "build": "node scripts/pack.mjs"
   },
   "exports": { ".": { "types": "./index.d.ts", "default": "./index.js" }, "./package.json": "./package.json" },
-  "files": ["index.js", "index.d.ts", "provider.js", "cordis.patch.yml", "README.md", "LICENSE"],
+  "files": ["index.js", "index.d.ts", "provider.js", "enterprise-client.js", "search-selection.js", "cordis.patch.yml", "README.md", "HOST-CONTRACT.md", "LICENSE"],
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",
