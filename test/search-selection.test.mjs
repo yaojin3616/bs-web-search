@@ -42,7 +42,7 @@ test('installation replaces native web.search, preserves fetch, and restores the
     assert.equal(calls.length, 1)
     assert.equal(calls[0].path, '/api/v1/dsh/tools/bs_web_search/invoke')
     const body = JSON.parse(calls[0].init.body)
-    assert.deepEqual(body, { arguments: { id: body.arguments.id, model: 'gpt-6.1-sol', commands: { search_query: [{ q: 'news' }] } } })
+    assert.deepEqual(body, { arguments: { id: body.arguments.id, model: 'gpt-5.6-terra', commands: { search_query: [{ q: 'news' }] } } })
     assert.match(body.arguments.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u)
     assert.deepEqual(calls[0].init.headers, { 'content-type': 'application/json' })
     await ctx.get('web').fetch({ url: 'https://example.com' })

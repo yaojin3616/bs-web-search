@@ -6,7 +6,7 @@ import { selectSearchProvider } from './search-selection.js'
 export const name = 'bs-web-search'
 export const inject = []
 export const Config = z.object({
-  model: z.string().default('gpt-6.1-sol'),
+  model: z.string().default('gpt-5.6-terra'),
   toolKey: z.string().default('bs_web_search'),
 })
 

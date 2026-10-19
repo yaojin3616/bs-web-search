@@ -76,7 +76,7 @@ test('registers without enterpriseSearch and invokes the host enterprise tool', 
     assert.ok(init.signal instanceof AbortSignal)
     assert.equal(init.signal.aborted, false)
     const body = JSON.parse(init.body)
-    assert.deepEqual(body, { arguments: { id: body.arguments.id, model: 'gpt-6.1-sol', commands: { search_query: [{ q: 'news' }] } } })
+    assert.deepEqual(body, { arguments: { id: body.arguments.id, model: 'gpt-5.6-terra', commands: { search_query: [{ q: 'news' }] } } })
     assert.match(body.arguments.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u)
     assert.doesNotMatch(JSON.stringify(calls), /token|authorization|connectionKey|\/v1\/(?:state|search)/i)
   } finally {

@@ -41,7 +41,7 @@ environment override must be removed before activation.
 ## Configuration
 
 ~~~yaml
-model: gpt-6.1-sol
+model: gpt-5.6-terra
 toolKey: bs_web_search
 ~~~
 
@@ -68,7 +68,7 @@ Content-Type: application/json
 {
   "arguments": {
     "id": "12345678-1234-4234-8234-123456789abc",
-    "model": "gpt-6.1-sol",
+    "model": "gpt-5.6-terra",
     "commands": { "search_query": [{ "q": "search query" }] }
   }
 }

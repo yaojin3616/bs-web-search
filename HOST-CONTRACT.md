@@ -89,7 +89,7 @@ host side; do not trust an arbitrary header supplied by the plugin.
 The search plugin invokes POST /api/v1/dsh/tools/{toolName}/invoke. The historical
 configuration field toolKey is retained for compatibility but means the exact
 saved tool name, not the generated tool_key. Default name: bs_web_search; default
-model: gpt-6.1-sol. Tool names are limited to 125 identifier characters.
+model: gpt-5.6-terra. Tool names are limited to 125 identifier characters.
 
 The plugin sends { arguments: { id, model, commands: { search_query: [{ q }] } } }.
 It generates id with crypto.randomUUID() for each business request and maps the
