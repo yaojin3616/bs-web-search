@@ -1,8 +1,8 @@
 # BISHENG Work Integration Contract
 
-The search plugin requires the enterpriseAuth.invokeTool SDK in the BISHENG Work
-source package packages/dsh-desktop-enterprise. Source support is not proof of
-production deployment or backend authorization. Upgrade the host and plugin together.
+Version 0.2.3 prefers enterpriseAuth.invokeTool from packages/dsh-desktop-enterprise.
+Older hosts with getState() and request() use the legacy compatibility adapter.
+Source support is not proof of production deployment or backend authorization.
 
 ## Public SDK
 
@@ -28,11 +28,13 @@ interface EnterpriseAuth {
 
 getState() is a synchronous public snapshot for availability, not authorization.
 The host checks instance permission and the current session on each request.
-The plugin detects invokeTool support; old hosts remain unavailable rather than
-falling back to a duplicate transport implementation.
+The plugin detects invokeTool support before dispatch. Without it, the request()
+compatibility adapter wraps tool calls, validates envelopes, enforces limits and
+checks session identity. A failed invocation is never retried via another path.
 
 The SDK also retains request(path, init) for arbitrary same-origin enterprise APIs,
-including binary and streaming responses. Search does not call that lower-level API.
+including binary and streaming responses. Request-only hosts use this API for
+search compatibility; credentials and permission checks are never bypassed.
 
 ## Responsibility boundaries
 

@@ -1,5 +1,6 @@
 import * as crypto from 'node:crypto'
 import { WebError } from '@deepseek-ai/dsh-web'
+import { createLegacyEnterpriseClient } from './legacy-enterprise-client.js'
 
 const object = value => typeof value === 'object' && value !== null && !Array.isArray(value)
 const localErrors = new WeakSet()
@@ -44,6 +45,7 @@ export function createEnterpriseClient({ getAuth, toolKey = 'bs_web_search' } = 
     throw new TypeError('Search toolKey must contain only letters, digits, underscores, or hyphens (1-125 characters).')
   }
   const lifetime = new AbortController()
+  const legacy = createLegacyEnterpriseClient({ getAuth, toolKey })
   const resolveAuth = () => {
     let auth
     try { auth = getAuth() } catch { /* Report unavailable without exposing host errors. */ }
@@ -53,12 +55,20 @@ export function createEnterpriseClient({ getAuth, toolKey = 'bs_web_search' } = 
     return auth
   }
   return {
-    dispose() { lifetime.abort() },
+    dispose() { lifetime.abort(); legacy.dispose() },
     available() {
       if (lifetime.signal.aborted) return false
-      try { return resolveAuth().getState()?.connected === true } catch { return false }
+      try {
+        const auth = getAuth()
+        return typeof auth?.invokeTool === 'function'
+          ? resolveAuth().getState()?.connected === true : legacy.available()
+      } catch { return false }
     },
     async search(input, signal) {
+      // Select before dispatch; never retry a failed SDK call via another transport.
+      let candidate
+      try { candidate = getAuth() } catch { /* The adapter reports a safe error. */ }
+      if (typeof candidate?.invokeTool !== 'function') return legacy.search(input, signal)
       const execution = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal
       try {
         if (execution.aborted) throw failure('Enterprise search cancelled.', 'WEB_ABORTED')

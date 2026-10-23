@@ -64,18 +64,22 @@ test('rejects invalid search input before calling the host SDK', async t => {
   assert.equal(calls.length, 0)
 })
 
-test('missing or old SDK stays unavailable and can recover without plugin reinstallation', async t => {
+test('missing SDK stays unavailable and can recover through legacy or current transport', async t => {
   const { client, setAuth } = fixture()
   t.after(() => client.dispose())
-  for (const auth of [undefined, { getState: signedIn, request() {} }, { invokeTool() {} }]) {
+  for (const auth of [undefined, { getState: signedIn }, { request() {} }, { invokeTool() {} }]) {
     setAuth(auth)
     assert.equal(client.available(), false)
     await assert.rejects(client.search(input), error => {
       assert.equal(error.code, 'WEB_ENTERPRISE_AUTH_UNAVAILABLE')
-      assert.match(error.message, /Update BISHENG Work/)
       return true
     })
   }
+  setAuth({ getState: signedIn, async request() {
+    return Response.json({ tool: 'bs_web_search', result: { output: 'legacy recovered' } })
+  } })
+  assert.equal(client.available(), true)
+  assert.equal((await client.search(input)).output, 'legacy recovered')
   setAuth({ getState: signedIn, async invokeTool() { return { output: 'recovered' } } })
   assert.equal(client.available(), true)
   assert.equal((await client.search(input)).output, 'recovered')

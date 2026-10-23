@@ -118,7 +118,7 @@ test('builds a complete enterprise archive without bundling host peers', async (
     const entries = unzipSync(await readFile(await packPlugin(directory)))
     const manifest = JSON.parse(Buffer.from(entries['manifest.json']).toString())
     assert.equal(manifest.plugin.name, 'bs-web-search')
-    assert.equal(manifest.plugin.version, '0.2.2')
+    assert.equal(manifest.plugin.version, '0.2.3')
     // services lists fixed HTTPS origins, not Cordis injection names.
     // This provider uses the host's current enterprise connection instead.
     assert.deepEqual(manifest.plugin.services, [])
@@ -127,6 +127,7 @@ test('builds a complete enterprise archive without bundling host peers', async (
     for (const [target, inventory] of Object.entries(manifest.targets)) {
       assert.ok(inventory['node_modules/bs-web-search/index.js'])
       assert.ok(inventory['node_modules/bs-web-search/enterprise-client.js'])
+      assert.ok(inventory['node_modules/bs-web-search/legacy-enterprise-client.js'])
       assert.ok(inventory['node_modules/bs-web-search/search-selection.js'])
       const patch = Buffer.from(entries[`bundles/${target}/node_modules/bs-web-search/cordis.patch.yml`]).toString()
       assert.doesNotMatch(patch, /searchProvider|fetchProvider/)

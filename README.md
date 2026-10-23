@@ -1,18 +1,20 @@
 # bs-web-search
 
-Enterprise web search for BISHENG Work. Version 0.2.2 calls the backend tool API
+Enterprise web search for BISHENG Work. Version 0.2.3 calls the backend tool API
 through a generic host authentication channel, not a search-specific local proxy.
 
 ## Integration status
 
-This version requires **ctx.enterpriseAuth.invokeTool()** from BISHENG Work.
-The host package packages/dsh-desktop-enterprise owns the shared tool client;
-this plugin supplies only the search-specific id/model/commands arguments. See
+This version requires **enterpriseAuth.getState()** and either **invokeTool()**
+or **request()** from BISHENG Work. New hosts use invokeTool preferentially.
+On new hosts, packages/dsh-desktop-enterprise owns the shared tool client.
+On older hosts, this plugin also supplies the tool protocol compatibility layer. See
 [HOST-CONTRACT.md](HOST-CONTRACT.md) for the integration contract. The plugin can
 activate without the service, but search remains unavailable. Isolated tests do
 not establish production deployment compatibility or a successful live search.
-Hosts exposing only request() must be upgraded; the plugin reports unavailable
-instead of maintaining a second HTTP client or bypassing the SDK.
+Hosts exposing only request() use the compatibility adapter restored from the
+original 0.2.2 implementation. Authentication and per-instance authorization
+still belong to the host. Failed invokeTool calls never retry through request().
 
 There is no dependency on enterpriseSearch, /v1/search, /v1/state, broker
 environment variables, or a global broker capability. There is no raw fetch or
@@ -29,7 +31,7 @@ lifetime to later web restarts.
 
 Login availability comes from the synchronous host state snapshot, without
 polling. Logout disables search immediately when the host updates that snapshot.
-The shared host SDK checks session identity before dispatch and after reading the
+The shared host SDK or legacy adapter checks session identity before dispatch and after reading the
 response; results from another user, enterprise, or session are discarded. The
 host is responsible for invalidating credentials and cancelling in-flight calls
 on logout or account switch. The plugin never falls back to the old provider
@@ -106,7 +108,7 @@ responses are rejected. The backend validates arguments against the saved tool
 OpenAPI schema, not a built-in search signature. The saved tool must declare the
 actual id/model/commands request shape, and the invocation API must support
 generic nested object/array validation. A backend limited to flat scalar inputs
-or still configured with the former query/model adapter is incompatible with 0.2.2.
+or still configured with the former query/model adapter is incompatible with 0.2.3.
 The backend OpenAPI executor should send the declared body unchanged; it must not
 generate the UUID or perform search-specific protocol conversion.
 
@@ -115,7 +117,7 @@ published_at maps to publishedAt. Invalid or credential-bearing URLs are removed
 and duplicate citations are collapsed. The encrypted_output field is not treated
 as readable search content. The web runtime enforces maxResults.
 
-The shared host SDK enforces the supplied 60-second timeout, 65536-byte serialized
+The shared host SDK or legacy adapter enforces the 60-second timeout, 65536-byte serialized
 request limit and 4 MiB JSON response limit. It handles tool envelopes, bounded
 JSON reading, safe diagnostics and session checks centrally for every plugin.
 Caller cancellation and plugin disposal abort requests and body reading, including
@@ -139,7 +141,7 @@ npm run build
 npm pack --dry-run
 ~~~
 
-The build produces .build/bs-web-search-0.2.2.zip with an enterprise manifest
+The build produces .build/bs-web-search-0.2.3.zip with an enterprise manifest
 and SHA-256 inventories for six platform/architecture targets. Runtime source,
 types and the host contract are included. Host peer packages are not bundled.
 ZIPs, dependencies and tarballs are not committed.
@@ -154,8 +156,19 @@ Plugin tests cover the invokeTool adapter, fresh search UUIDs and arguments,
 search validation, error mapping, cancellation/disposal, automatic provider
 replacement/restoration and ZIP integrity. Generic HTTP, JSON/envelope, limits,
 timeout, authorization and session-safety regressions belong to the shared client
-in BISHENG Work, not a duplicated plugin client. Joint host/plugin integration
+in BISHENG Work for the SDK path and the compatibility adapter for request-only
+hosts. Joint host/plugin integration
 and live enterprise/backend authorization require separate acceptance.
+
+To check an actual host service against the search plugin with a local HTTP tool
+fixture, run:
+
+~~~sh
+node scripts/check-host.mjs ../bisheng-work/packages/dsh-desktop-enterprise/enterprise-auth.js
+~~~
+
+This validates Cordis authorization binding and the wire protocol, not a live
+enterprise server or an installed Electron client.
 
 ## License
 
